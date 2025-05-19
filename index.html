@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notificaciones para mi Damaris</title>
+    <link rel="stylesheet" href="styles.css?v=1.1">
+</head>
+<body>
+    <div class="container">
+        <h1 id="app-title">Notificaciones para mi Damaris</h1>
+
+        <div class="notification-form">
+            <h2>Crear nueva notificación</h2>
+
+            <div class="form-group">
+                <label for="notification-title">Título:</label>
+                <input type="text" id="notification-title" placeholder="Título de la notificación" value="Recordatorio">
+            </div>
+
+            <div class="form-group">
+                <label for="notification-message">Mensaje:</label>
+                <input type="text" id="notification-message" placeholder="Mensaje de la notificación" value="¡Es hora de tu recordatorio!">
+            </div>
+
+            <div class="form-group">
+                <label for="notification-time">Hora de la notificación:</label>
+                <input type="datetime-local" id="notification-time">
+            </div>
+
+
+            <div class="form-group">
+                <label for="notification-custom-icon">URL de imagen personalizada (PNG, JPG, GIF):</label>
+                <input type="url" id="notification-custom-icon" placeholder="https://ejemplo.com/imagen.png">
+            </div>
+
+            <div class="form-group">
+                <button id="schedule-btn">Programar Notificación</button>
+                <button id="test-btn">Probar Ahora</button>
+            </div>
+        </div>
+
+        <div class="notification-list">
+            <h2>Notificaciones programadas</h2>
+            <ul id="scheduled-notifications">
+                <!-- Las notificaciones programadas se mostrarán aquí -->
+            </ul>
+            <div class="form-group" style="margin-top: 15px;">
+                <button id="hourly-config-btn">Configuración de Notificación Recurrente</button>
+            </div>
+        </div>
+
+        <!-- Modal para la contraseña -->
+        <div id="password-modal" class="modal">
+            <div class="modal-content">
+                <h3>Ingrese la contraseña</h3>
+                <div class="form-group">
+                    <input type="password" id="password-input" placeholder="Contraseña">
+                </div>
+                <div class="form-group">
+                    <button id="password-submit-btn">Acceder</button>
+                    <button id="password-cancel-btn">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-panel">
+            <div id="permission-status">Estado de permisos: Verificando...</div>
+        </div>
+
+        <!-- Panel oculto para notificación recurrente -->
+        <div id="hourly-notification-panel" class="hidden-panel">
+            <h2>Configuración de Notificación Recurrente</h2>
+
+            <div class="form-group">
+                <label for="hourly-notification-title">Título:</label>
+                <input type="text" id="hourly-notification-title" placeholder="Título de la notificación horaria" value="Recordatorio Horario">
+            </div>
+
+            <div class="form-group">
+                <label for="hourly-notification-message">Mensaje:</label>
+                <input type="text" id="hourly-notification-message" placeholder="Mensaje de la notificación horaria" value="¡Es hora de tu recordatorio horario!">
+            </div>
+
+
+
+            <div class="form-group">
+                <label for="hourly-notification-custom-icon">URL de imagen personalizada (PNG, JPG, GIF):</label>
+                <input type="url" id="hourly-notification-custom-icon" placeholder="https://ejemplo.com/imagen.png">
+            </div>
+
+            <div class="form-group">
+                <label for="notification-interval">Intervalo de tiempo:</label>
+                <select id="notification-interval">
+                    <option value="900000">Cada 15 minutos</option>
+                    <option value="1800000">Cada 30 minutos</option>
+                    <option value="3600000" selected>Cada hora</option>
+                    <option value="7200000">Cada 2 horas</option>
+                    <option value="14400000">Cada 4 horas</option>
+                    <option value="86400000">Cada día</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <button id="hourly-enable-btn">Activar Notificación Recurrente</button>
+                <button id="hourly-disable-btn">Desactivar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=1.1"></script>
+</body>
+</html>
