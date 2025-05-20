@@ -1,0 +1,17 @@
+{
+  "name": "Programador de Notificaciones",
+  "short_name": "Notificaciones",
+  "description": "Aplicación para programar y enviar notificaciones",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3498db",
+  "icons": [
+    {
+      "src": "images/perrito.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ],
+  "gcm_sender_id": "103953800507"
+}

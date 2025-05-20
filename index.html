@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notificaciones para mi Damaris</title>
-    <link rel="stylesheet" href="styles.css?v=1.1">
+    <link rel="stylesheet" href="styles.css?v=1.2">
+    <link rel="manifest" href="manifest.json">
 </head>
 <body>
     <div class="container">
@@ -90,8 +91,73 @@
             </div>
 
             <div class="form-group">
+                <label for="hourly-notification-image-file">O selecciona una imagen desde tu PC:</label>
+                <input type="file" id="hourly-notification-image-file" accept="image/png, image/jpeg, image/gif">
+                <div id="hourly-image-preview" class="image-preview-container"></div>
+            </div>
+
+            <div class="form-group">
                 <label for="notification-interval">Intervalo de tiempo:</label>
                 <select id="notification-interval">
+                    <option value="60000">Cada 1 minuto</option>
+                    <option value="120000">Cada 2 minutos</option>
+                    <option value="180000">Cada 3 minutos</option>
+                    <option value="300000">Cada 5 minutos</option>
+                    <option value="600000">Cada 10 minutos</option>
+                    <option value="900000">Cada 15 minutos</option>
+                    <option value="1800000">Cada 30 minutos</option>
+                    <option value="3600000">Cada hora</option>
+                    <option value="7200000">Cada 2 horas</option>
+                    <option value="14400000">Cada 4 horas</option>
+                    <option value="86400000">Cada día</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="custom-interval">Intervalo personalizado (en minutos):</label>
+                <input type="number" id="custom-interval" min="1" max="1440" placeholder="Ingrese minutos (1-1440)">
+            </div>
+
+            <div class="form-group">
+                <button id="hourly-enable-btn">Activar Notificación Recurrente</button>
+                <button id="hourly-disable-btn">Desactivar</button>
+            </div>
+
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+
+            <h3>Notificaciones Push (Firebase)</h3>
+            <p>Estas notificaciones funcionan incluso cuando el navegador está cerrado.</p>
+            <p>Dispositivos suscritos: <span id="subscribers-count">0</span></p>
+
+            <div class="form-group">
+                <label for="push-title">Título:</label>
+                <input type="text" id="push-title" placeholder="Título de la notificación push" value="Notificación Importante">
+            </div>
+
+            <div class="form-group">
+                <label for="push-message">Mensaje:</label>
+                <input type="text" id="push-message" placeholder="Mensaje de la notificación push" value="¡Tienes un mensaje importante!">
+            </div>
+
+            <div class="form-group">
+                <label for="push-image">URL de imagen personalizada (PNG, JPG, GIF):</label>
+                <input type="url" id="push-image" placeholder="https://ejemplo.com/imagen.png">
+            </div>
+
+            <div class="form-group">
+                <label for="push-image-file">O selecciona una imagen desde tu PC:</label>
+                <input type="file" id="push-image-file" accept="image/png, image/jpeg, image/gif">
+                <div id="push-image-preview" class="image-preview-container"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="push-interval">Intervalo para notificaciones recurrentes:</label>
+                <select id="push-interval">
+                    <option value="60000">Cada 1 minuto</option>
+                    <option value="120000">Cada 2 minutos</option>
+                    <option value="180000">Cada 3 minutos</option>
+                    <option value="300000">Cada 5 minutos</option>
+                    <option value="600000">Cada 10 minutos</option>
                     <option value="900000">Cada 15 minutos</option>
                     <option value="1800000">Cada 30 minutos</option>
                     <option value="3600000" selected>Cada hora</option>
@@ -102,12 +168,161 @@
             </div>
 
             <div class="form-group">
-                <button id="hourly-enable-btn">Activar Notificación Recurrente</button>
-                <button id="hourly-disable-btn">Desactivar</button>
+                <label for="push-custom-interval">Intervalo personalizado (en minutos):</label>
+                <input type="number" id="push-custom-interval" min="1" max="1440" placeholder="Ingrese minutos (1-1440)">
+            </div>
+
+            <div class="form-group">
+                <button id="send-push-btn">Enviar Notificación Push</button>
+                <button id="subscribe-push-btn">Suscribirse a Notificaciones</button>
+            </div>
+
+            <div class="form-group">
+                <p>Estado de notificaciones recurrentes: <span id="recurring-push-status">Inactivas</span></p>
+                <button id="start-recurring-push-btn">Activar Notificaciones Recurrentes</button>
+                <button id="stop-recurring-push-btn" disabled>Desactivar</button>
+            </div>
+
+            <div class="form-group">
+                <h4>Notificación Recurrente Activa:</h4>
+                <div id="active-recurring-notification" class="recurring-notification-card">
+                    <p>No hay notificación recurrente activa</p>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="app.js?v=1.1"></script>
+    <script src="app.js?v=1.2"></script>
+    <script type="module">
+        import { initNotificationSystem, requestNotificationPermission, sendNotification, getNotificationStatus, checkPendingNotifications } from './simple-push.js';
+        import { initPushAdmin, initRecurringNotifications } from './push-admin.js';
+        import { initTrackingSystem, trackEvent, getTrackingEvents, getSessionInfo } from './tracking-pixel.js';
+
+        // Inicializar interfaz de administración
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Inicializar el sistema de seguimiento
+            const userInfo = initTrackingSystem();
+            console.log('Sistema de seguimiento inicializado:', userInfo.sessionId);
+
+            // Registrar evento de carga de página
+            trackEvent('page_load', {
+                url: window.location.href,
+                timestamp: new Date().toISOString()
+            });
+
+            // Inicializar el sistema de notificaciones
+            await initNotificationSystem();
+
+            // Inicializar la interfaz de administración
+            initPushAdmin();
+
+            // Inicializar notificaciones recurrentes
+            initRecurringNotifications();
+
+            // Verificar notificaciones pendientes
+            setTimeout(() => {
+                checkPendingNotifications();
+            }, 5000);
+
+            // Configurar listener para mensajes del Service Worker
+            if (navigator.serviceWorker) {
+                navigator.serviceWorker.addEventListener('message', (event) => {
+                    console.log('Mensaje recibido del Service Worker:', event.data);
+
+                    // Si el Service Worker solicita la configuración de notificaciones recurrentes
+                    if (event.data.action === 'requestRecurringNotificationSettings') {
+                        const status = getNotificationStatus();
+                        if (status.recurringActive && status.settings.isActive) {
+                            // Enviar configuración al Service Worker
+                            navigator.serviceWorker.controller.postMessage({
+                                action: 'setupRecurringNotification',
+                                notification: {
+                                    title: status.settings.title,
+                                    message: status.settings.message || '¡Tienes una notificación!',
+                                    imageUrl: status.settings.imageUrl,
+                                    interval: status.settings.interval,
+                                    id: `recurring_restored_${Date.now()}`
+                                }
+                            });
+                        }
+                    }
+
+                    // Registrar evento de notificación
+                    if (event.data.action === 'notificationSent') {
+                        trackEvent('notification_sent', {
+                            id: event.data.notificationId,
+                            timestamp: event.data.timestamp,
+                            recurring: event.data.recurring || false
+                        });
+                    }
+                });
+            }
+
+            // Agregar event listener para el botón de suscripción
+            const subscribeBtn = document.getElementById('subscribe-push-btn');
+            if (subscribeBtn) {
+                subscribeBtn.addEventListener('click', async () => {
+                    try {
+                        // Registrar evento de clic en botón de suscripción
+                        trackEvent('subscribe_button_click', {
+                            timestamp: new Date().toISOString()
+                        });
+
+                        const result = await requestNotificationPermission();
+                        if (result) {
+                            alert('¡Suscripción a notificaciones exitosa!');
+
+                            // Registrar evento de suscripción exitosa
+                            trackEvent('subscription_success', {
+                                timestamp: new Date().toISOString()
+                            });
+
+                            // Enviar una notificación de prueba
+                            setTimeout(() => {
+                                sendNotification(
+                                    'Notificación de prueba',
+                                    '¡Tu suscripción a notificaciones funciona correctamente!'
+                                );
+                            }, 2000);
+                        } else {
+                            alert('No se pudo obtener permiso para notificaciones. Por favor, intenta de nuevo.');
+
+                            // Registrar evento de suscripción fallida
+                            trackEvent('subscription_failure', {
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error al solicitar permiso:', error);
+                        alert('Error al solicitar permiso: ' + error.message);
+
+                        // Registrar evento de error
+                        trackEvent('subscription_error', {
+                            error: error.message,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                });
+            }
+
+            // Exponer funciones globalmente para pruebas y depuración
+            window.notificationSystem = {
+                requestPermission: requestNotificationPermission,
+                sendNotification: sendNotification,
+                getStatus: getNotificationStatus,
+                checkPending: checkPendingNotifications
+            };
+
+            // Exponer sistema de seguimiento para depuración
+            window.trackingSystem = {
+                trackEvent: trackEvent,
+                getEvents: getTrackingEvents,
+                getSessionInfo: getSessionInfo
+            };
+
+            // Mostrar mensaje de depuración
+            console.log('Sistemas inicializados correctamente. Usa window.notificationSystem y window.trackingSystem para interactuar con ellos.');
+        });
+    </script>
 </body>
 </html>

@@ -122,6 +122,68 @@ button:hover {
     background-color: #c0392b;
 }
 
+#start-recurring-push-btn {
+    background-color: #2ecc71;
+}
+
+#start-recurring-push-btn:hover {
+    background-color: #27ae60;
+}
+
+#stop-recurring-push-btn {
+    background-color: #e74c3c;
+}
+
+#stop-recurring-push-btn:hover {
+    background-color: #c0392b;
+}
+
+#recurring-push-status {
+    font-weight: bold;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.recurring-notification-card {
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+.recurring-notification-card h5 {
+    margin: 0 0 10px 0;
+    color: #3498db;
+}
+
+.recurring-notification-card p {
+    margin: 5px 0;
+}
+
+.recurring-notification-card .interval {
+    color: #27ae60;
+    font-weight: bold;
+}
+
+.recurring-notification-card .image-preview,
+.image-preview-container img {
+    max-width: 100px;
+    max-height: 100px;
+    margin-top: 10px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+.image-preview-container {
+    min-height: 20px;
+    margin-top: 10px;
+}
+
+input[type="file"] {
+    margin-bottom: 5px;
+}
+
 #scheduled-notifications {
     list-style: none;
 }
@@ -179,12 +241,13 @@ button:hover {
     margin-bottom: 10px;
 }
 
-.status-granted {
+.status-granted, .status-active {
     background-color: #d5f5e3;
     color: #27ae60;
+    font-weight: bold;
 }
 
-.status-denied {
+.status-denied, .status-inactive {
     background-color: #fadbd8;
     color: #e74c3c;
 }

@@ -1,5 +1,9 @@
 // Nombre del cache para almacenar recursos
-const CACHE_NAME = 'notification-app-v1';
+const CACHE_NAME = 'notification-app-v3';
+
+// Variables para notificaciones recurrentes
+let recurringNotifications = {};
+let recurringIntervals = {};
 
 // Instalación del Service Worker
 self.addEventListener('install', (event) => {
@@ -10,10 +14,15 @@ self.addEventListener('install', (event) => {
         '/',
         '/index.html',
         '/styles.css',
-        '/app.js'
+        '/app.js',
+        '/images/perrito.png',
+        '/sound.mp3'
       ]);
     })
   );
+
+  // Activar inmediatamente sin esperar a que se cierre la página
+  self.skipWaiting();
 });
 
 // Activación del Service Worker
@@ -28,6 +37,34 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
+    }).then(() => {
+      // Tomar el control inmediatamente
+      return self.clients.claim();
+    }).then(() => {
+      // Notificar a todos los clientes que el Service Worker está activo
+      return self.clients.matchAll().then(clients => {
+        return Promise.all(clients.map(client => {
+          return client.postMessage({
+            action: 'serviceWorkerActivated',
+            timestamp: Date.now()
+          });
+        }));
+      });
+    }).then(() => {
+      // Restaurar notificaciones recurrentes si existen
+      try {
+        // Intentar recuperar configuración de notificaciones recurrentes
+        self.clients.matchAll().then(clients => {
+          if (clients.length > 0) {
+            // Pedir a un cliente que envíe la configuración de notificaciones recurrentes
+            clients[0].postMessage({
+              action: 'requestRecurringNotificationSettings'
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Error al restaurar notificaciones recurrentes:', error);
+      }
     })
   );
 });
@@ -84,6 +121,7 @@ self.addEventListener('message', (event) => {
     return;
   }
 
+  // Programar una notificación para un momento específico
   if (event.data.action === 'scheduleNotification') {
     const notificationData = event.data.notification;
     const scheduledTime = new Date(notificationData.time).getTime();
@@ -97,11 +135,105 @@ self.addEventListener('message', (event) => {
         body: notificationData.message,
         icon: notificationData.icon || '/images/perrito.png',
         badge: '/images/badge-icon.png',
+        vibrate: [200, 100, 200], // Patrón de vibración
+        sound: 'sound.mp3', // Sonido (si el navegador lo soporta)
+        requireInteraction: true, // Mantener la notificación hasta que el usuario interactúe
+        tag: `notification-${notificationData.id}`, // Etiquetar para poder actualizar en lugar de mostrar múltiples
         data: {
-          id: notificationData.id
+          id: notificationData.id,
+          timestamp: Date.now()
         }
       });
+
+      // Enviar mensaje a todos los clientes para confirmar que la notificación fue enviada
+      self.clients.matchAll().then(clients => {
+        clients.forEach(client => {
+          client.postMessage({
+            action: 'notificationSent',
+            notificationId: notificationData.id,
+            timestamp: Date.now()
+          });
+        });
+      });
     }, delay);
+  }
+
+  // Configurar notificación recurrente
+  else if (event.data.action === 'setupRecurringNotification') {
+    const notificationData = event.data.notification;
+    const notificationId = notificationData.id;
+
+    console.log(`Configurando notificación recurrente con ID: ${notificationId}`);
+
+    // Guardar la configuración
+    recurringNotifications[notificationId] = notificationData;
+
+    // Detener intervalo anterior si existe
+    if (recurringIntervals[notificationId]) {
+      clearInterval(recurringIntervals[notificationId]);
+      delete recurringIntervals[notificationId];
+    }
+
+    // Configurar nuevo intervalo
+    recurringIntervals[notificationId] = setInterval(() => {
+      console.log(`Enviando notificación recurrente: ${notificationId}`);
+
+      // Mostrar notificación
+      self.registration.showNotification(notificationData.title, {
+        body: notificationData.message,
+        icon: notificationData.imageUrl || '/images/perrito.png',
+        badge: '/images/badge-icon.png',
+        vibrate: [200, 100, 200],
+        sound: 'sound.mp3',
+        requireInteraction: true,
+        tag: `recurring-${notificationId}`,
+        renotify: true,
+        data: {
+          id: notificationId,
+          timestamp: Date.now(),
+          recurring: true
+        }
+      });
+
+      // Notificar a todos los clientes
+      self.clients.matchAll().then(clients => {
+        clients.forEach(client => {
+          client.postMessage({
+            action: 'notificationSent',
+            notificationId: notificationId,
+            timestamp: Date.now(),
+            recurring: true
+          });
+        });
+      });
+    }, notificationData.interval);
+
+    // Enviar confirmación
+    event.source.postMessage({
+      action: 'recurringNotificationSetup',
+      notificationId: notificationId,
+      success: true
+    });
+  }
+
+  // Detener notificación recurrente
+  else if (event.data.action === 'stopRecurringNotification') {
+    console.log('Deteniendo todas las notificaciones recurrentes');
+
+    // Detener todos los intervalos
+    Object.keys(recurringIntervals).forEach(id => {
+      clearInterval(recurringIntervals[id]);
+      delete recurringIntervals[id];
+      delete recurringNotifications[id];
+    });
+
+    // Enviar confirmación
+    if (event.source) {
+      event.source.postMessage({
+        action: 'recurringNotificationsStopped',
+        success: true
+      });
+    }
   }
 });
 

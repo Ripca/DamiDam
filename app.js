@@ -28,9 +28,15 @@ const hourlyPanel = document.getElementById('hourly-notification-panel');
 const hourlyTitleInput = document.getElementById('hourly-notification-title');
 const hourlyMessageInput = document.getElementById('hourly-notification-message');
 const hourlyCustomIconInput = document.getElementById('hourly-notification-custom-icon');
+const hourlyImageFileInput = document.getElementById('hourly-notification-image-file');
+const hourlyImagePreview = document.getElementById('hourly-image-preview');
 const intervalSelect = document.getElementById('notification-interval');
+const customIntervalInput = document.getElementById('custom-interval');
 const hourlyEnableBtn = document.getElementById('hourly-enable-btn');
 const hourlyDisableBtn = document.getElementById('hourly-disable-btn');
+
+// Variable para la imagen seleccionada
+let selectedHourlyImageFile = null;
 
 // Inicialización
 document.addEventListener('DOMContentLoaded', () => {
@@ -66,6 +72,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     hourlyEnableBtn.addEventListener('click', enableHourlyNotification);
     hourlyDisableBtn.addEventListener('click', disableHourlyNotification);
+
+    // Manejar selección de archivo de imagen
+    if (hourlyImageFileInput) {
+        hourlyImageFileInput.addEventListener('change', handleHourlyImageFileSelect);
+    }
+
+    // Escuchar mensajes del Service Worker
+    navigator.serviceWorker.addEventListener('message', (event) => {
+        console.log('Mensaje recibido del Service Worker:', event.data);
+
+        // Confirmar que una notificación fue enviada
+        if (event.data.action === 'notificationSent') {
+            console.log(`Notificación ${event.data.notificationId} enviada correctamente a las ${new Date(event.data.timestamp).toLocaleTimeString()}`);
+        }
+    });
 });
 
 // Registrar el Service Worker
@@ -296,6 +317,47 @@ function isValidImageUrl(url) {
     return url.match(/\.(jpeg|jpg|gif|png)$/i) !== null;
 }
 
+// Manejar selección de archivo de imagen para notificaciones horarias
+function handleHourlyImageFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Verificar que sea una imagen
+    if (!file.type.match('image.*')) {
+        alert('Por favor, selecciona un archivo de imagen (PNG, JPG, GIF).');
+        event.target.value = '';
+        return;
+    }
+
+    // Guardar referencia al archivo
+    selectedHourlyImageFile = file;
+
+    // Mostrar vista previa
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        if (hourlyImagePreview) {
+            hourlyImagePreview.innerHTML = `<img src="${e.target.result}" alt="Vista previa">`;
+        }
+
+        // Limpiar el campo de URL ya que ahora usaremos el archivo
+        if (hourlyCustomIconInput) {
+            hourlyCustomIconInput.value = '';
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+// Obtener URL de imagen para notificaciones horarias
+function getHourlyImageUrl() {
+    // Priorizar archivo seleccionado
+    if (selectedHourlyImageFile) {
+        return URL.createObjectURL(selectedHourlyImageFile);
+    }
+
+    // Si no hay archivo, usar URL o imagen predeterminada
+    return hourlyCustomIconInput.value.trim() || 'images/perrito.png';
+}
+
 // Enviar una notificación de prueba
 function sendTestNotification() {
     if (!isPermissionGranted) {
@@ -484,21 +546,19 @@ function enableHourlyNotification() {
 
     const title = hourlyTitleInput.value.trim() || 'Recordatorio Horario';
     const message = hourlyMessageInput.value.trim() || '¡Es hora de tu recordatorio horario!';
-    let icon = 'images/perrito.png'; // Usar perrito.png como icono predeterminado
-    const customIcon = hourlyCustomIconInput.value.trim();
+    const icon = getHourlyImageUrl(); // Usar la función para obtener la URL de la imagen
 
-    // Verificar si hay una URL de imagen personalizada
-    if (customIcon) {
-        if (isValidImageUrl(customIcon)) {
-            icon = customIcon;
-        } else {
-            alert('La URL de imagen debe terminar en .png, .jpg, .jpeg o .gif');
-            return;
-        }
+    // Obtener el intervalo personalizado o el seleccionado
+    let interval;
+    const customIntervalValue = customIntervalInput.value.trim();
+
+    if (customIntervalValue && !isNaN(customIntervalValue) && parseInt(customIntervalValue) > 0) {
+        // Convertir minutos a milisegundos
+        interval = parseInt(customIntervalValue) * 60000;
+    } else {
+        // Usar el valor del selector
+        interval = parseInt(intervalSelect.value);
     }
-
-    // Obtener el intervalo seleccionado
-    const interval = parseInt(intervalSelect.value);
 
     // Guardar la configuración
     const hourlySettings = {
@@ -537,7 +597,7 @@ function enableHourlyNotification() {
 // Desactivar la notificación horaria
 function disableHourlyNotification() {
     if (hourlyNotificationInterval) {
-        clearInterval(hourlyNotificationInterval);
+        clearTimeout(hourlyNotificationInterval);
         hourlyNotificationInterval = null;
     }
 
@@ -569,32 +629,38 @@ function startHourlyNotification(settings) {
     // Configurar el intervalo según lo seleccionado (por defecto: 3600000 ms = 1 hora)
     const interval = settings.interval || 3600000;
 
-    // Actualizar el selector de intervalo si existe
-    if (intervalSelect) {
-        // Buscar la opción que coincide con el intervalo guardado
+    // Actualizar la interfaz de usuario si estamos en el panel de configuración
+    if (intervalSelect && customIntervalInput) {
+        // Si es un intervalo personalizado (no está en las opciones predefinidas)
         let found = false;
+
+        // Intentar encontrar el intervalo en las opciones predefinidas
         for (let i = 0; i < intervalSelect.options.length; i++) {
             if (parseInt(intervalSelect.options[i].value) === interval) {
                 intervalSelect.selectedIndex = i;
+                customIntervalInput.value = ''; // Limpiar el campo personalizado
                 found = true;
                 break;
             }
         }
 
-        // Si no se encuentra, seleccionar la opción por defecto (1 hora)
+        // Si no se encuentra en las opciones predefinidas, debe ser personalizado
         if (!found) {
-            for (let i = 0; i < intervalSelect.options.length; i++) {
-                if (parseInt(intervalSelect.options[i].value) === 3600000) {
-                    intervalSelect.selectedIndex = i;
-                    break;
-                }
-            }
+            // Seleccionar la primera opción (o cualquier otra por defecto)
+            intervalSelect.selectedIndex = 0;
+            // Mostrar el valor en el campo de intervalo personalizado (convertir de ms a minutos)
+            customIntervalInput.value = Math.floor(interval / 60000);
         }
     }
 
     // Mostrar mensaje con el intervalo seleccionado
     let intervalText = '';
     switch(interval) {
+        case 60000: intervalText = '1 minuto'; break;
+        case 120000: intervalText = '2 minutos'; break;
+        case 180000: intervalText = '3 minutos'; break;
+        case 300000: intervalText = '5 minutos'; break;
+        case 600000: intervalText = '10 minutos'; break;
         case 900000: intervalText = '15 minutos'; break;
         case 1800000: intervalText = '30 minutos'; break;
         case 3600000: intervalText = '1 hora'; break;
@@ -606,9 +672,18 @@ function startHourlyNotification(settings) {
 
     console.log(`Configurando notificación recurrente cada ${intervalText}`);
 
-    hourlyNotificationInterval = setInterval(() => {
-        sendHourlyNotification(settings);
-    }, interval);
+    // Usar setTimeout en lugar de setInterval para mayor precisión
+    function scheduleNextNotification() {
+        hourlyNotificationInterval = setTimeout(() => {
+            // Enviar la notificación
+            sendHourlyNotification(settings);
+            // Programar la siguiente
+            scheduleNextNotification();
+        }, interval);
+    }
+
+    // Iniciar el ciclo de notificaciones
+    scheduleNextNotification();
 
     isHourlyNotificationActive = true;
 }
@@ -617,17 +692,52 @@ function startHourlyNotification(settings) {
 function sendHourlyNotification(settings) {
     if (!isPermissionGranted) return;
 
-    if (swRegistration && swRegistration.active) {
-        swRegistration.showNotification(settings.title, {
-            body: settings.message,
-            icon: settings.icon || 'images/perrito.png',
-            badge: '/images/badge-icon.png'
-        });
-    } else {
-        new Notification(settings.title, {
-            body: settings.message,
-            icon: settings.icon || 'images/perrito.png'
-        });
+    console.log('Enviando notificación recurrente:', settings.title, settings.message);
+
+    try {
+        // Intentar usar el Service Worker si está disponible
+        if (swRegistration && swRegistration.active) {
+            // Agregar un sonido y vibración para llamar la atención
+            swRegistration.showNotification(settings.title, {
+                body: settings.message,
+                icon: settings.icon || 'images/perrito.png',
+                badge: '/images/badge-icon.png',
+                vibrate: [200, 100, 200], // Patrón de vibración
+                sound: 'sound.mp3', // Sonido (si el navegador lo soporta)
+                requireInteraction: true, // Mantener la notificación hasta que el usuario interactúe
+                tag: 'recurring-notification', // Etiquetar para poder actualizar en lugar de mostrar múltiples
+                renotify: true // Notificar nuevamente incluso si hay una notificación con la misma etiqueta
+            });
+            console.log('Notificación enviada a través del Service Worker');
+        } else {
+            // Fallback a la API de Notificaciones nativa
+            new Notification(settings.title, {
+                body: settings.message,
+                icon: settings.icon || 'images/perrito.png',
+                requireInteraction: true
+            });
+            console.log('Notificación enviada a través de la API nativa');
+
+            // Reproducir un sonido para llamar la atención
+            try {
+                const audio = new Audio('sound.mp3');
+                audio.play().catch(e => console.log('No se pudo reproducir el sonido:', e));
+            } catch (e) {
+                console.log('Error al intentar reproducir sonido:', e);
+            }
+        }
+    } catch (error) {
+        console.error('Error al enviar notificación:', error);
+        // Intentar con el método alternativo si el principal falla
+        try {
+            new Notification(settings.title, {
+                body: settings.message,
+                icon: settings.icon || 'images/perrito.png'
+            });
+            console.log('Notificación enviada mediante método alternativo');
+        } catch (e) {
+            console.error('Error en método alternativo de notificación:', e);
+        }
     }
 }
 
