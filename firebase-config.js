@@ -192,7 +192,7 @@ async function requestNotificationPermission() {
       // Esperar un momento para asegurarnos de que todo esté listo
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      try {
+      try { 
         // Solicitar el token directamente
         console.log('Solicitando token FCM...');
 
