@@ -4,7 +4,7 @@ let isPermissionGranted = false;
 const scheduledNotifications = [];
 let hourlyNotificationInterval = null;
 let isHourlyNotificationActive = false;
-const CORRECT_PASSWORD = 'PastelitoCoronado123';
+const CORRECT_PASSWORD = '123';
 
 // Elementos del DOM
 const titleInput = document.getElementById('notification-title');
@@ -25,15 +25,6 @@ const passwordCancelBtn = document.getElementById('password-cancel-btn');
 
 // Elementos del panel oculto
 const hourlyPanel = document.getElementById('hourly-notification-panel');
-const hourlyTitleInput = document.getElementById('hourly-notification-title');
-const hourlyMessageInput = document.getElementById('hourly-notification-message');
-const hourlyCustomIconInput = document.getElementById('hourly-notification-custom-icon');
-const hourlyImageFileInput = document.getElementById('hourly-notification-image-file');
-const hourlyImagePreview = document.getElementById('hourly-image-preview');
-const intervalSelect = document.getElementById('notification-interval');
-const customIntervalInput = document.getElementById('custom-interval');
-const hourlyEnableBtn = document.getElementById('hourly-enable-btn');
-const hourlyDisableBtn = document.getElementById('hourly-disable-btn');
 
 // Variable para la imagen seleccionada
 let selectedHourlyImageFile = null;
@@ -70,13 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
             checkPassword();
         }
     });
-    hourlyEnableBtn.addEventListener('click', enableHourlyNotification);
-    hourlyDisableBtn.addEventListener('click', disableHourlyNotification);
 
-    // Manejar selección de archivo de imagen
-    if (hourlyImageFileInput) {
-        hourlyImageFileInput.addEventListener('change', handleHourlyImageFileSelect);
-    }
+    // Ya no se maneja la selección de archivo de imagen para notificaciones horarias
 
     // Escuchar mensajes del Service Worker
     navigator.serviceWorker.addEventListener('message', (event) => {
@@ -349,13 +335,9 @@ function handleHourlyImageFileSelect(event) {
 
 // Obtener URL de imagen para notificaciones horarias
 function getHourlyImageUrl() {
-    // Priorizar archivo seleccionado
-    if (selectedHourlyImageFile) {
-        return URL.createObjectURL(selectedHourlyImageFile);
-    }
-
-    // Si no hay archivo, usar URL o imagen predeterminada
-    return hourlyCustomIconInput.value.trim() || 'images/perrito.png';
+    // Ya no se manejan archivos de imagen para notificaciones horarias
+    // Devolver la imagen predeterminada
+    return 'images/perrito.png';
 }
 
 // Enviar una notificación de prueba
@@ -536,84 +518,14 @@ function showHourlyPanel() {
     hourlyPanel.style.display = 'block';
 }
 
-// Activar la notificación horaria
+// Esta función ya no se utiliza porque se eliminó el botón correspondiente
 function enableHourlyNotification() {
-    if (!isPermissionGranted) {
-        alert('Necesitas conceder permiso para recibir notificaciones');
-        requestNotificationPermission();
-        return;
-    }
-
-    const title = hourlyTitleInput.value.trim() || 'Recordatorio Horario';
-    const message = hourlyMessageInput.value.trim() || '¡Es hora de tu recordatorio horario!';
-    const icon = getHourlyImageUrl(); // Usar la función para obtener la URL de la imagen
-
-    // Obtener el intervalo personalizado o el seleccionado
-    let interval;
-    const customIntervalValue = customIntervalInput.value.trim();
-
-    if (customIntervalValue && !isNaN(customIntervalValue) && parseInt(customIntervalValue) > 0) {
-        // Convertir minutos a milisegundos
-        interval = parseInt(customIntervalValue) * 60000;
-    } else {
-        // Usar el valor del selector
-        interval = parseInt(intervalSelect.value);
-    }
-
-    // Guardar la configuración
-    const hourlySettings = {
-        title,
-        message,
-        icon,
-        interval,
-        isActive: true,
-        isGlobal: true  // Marcar como configuración global
-    };
-
-    // Guardar en configuración personal
-    localStorage.setItem('hourlyNotificationSettings', JSON.stringify(hourlySettings));
-
-    // Guardar también como configuración global para todos los usuarios
-    localStorage.setItem('globalNotificationSettings', JSON.stringify(hourlySettings));
-
-    // Iniciar el intervalo
-    startHourlyNotification(hourlySettings);
-
-    // Mostrar mensaje con el intervalo seleccionado
-    let intervalText = '';
-    switch(interval) {
-        case 900000: intervalText = '15 minutos'; break;
-        case 1800000: intervalText = '30 minutos'; break;
-        case 3600000: intervalText = '1 hora'; break;
-        case 7200000: intervalText = '2 horas'; break;
-        case 14400000: intervalText = '4 horas'; break;
-        case 86400000: intervalText = '24 horas'; break;
-        default: intervalText = Math.floor(interval / 60000) + ' minutos';
-    }
-
-    alert(`Notificación recurrente activada con éxito. Se enviará cada ${intervalText}`);
+    console.log('Esta función ya no se utiliza');
 }
 
-// Desactivar la notificación horaria
+// Esta función ya no se utiliza porque se eliminó el botón correspondiente
 function disableHourlyNotification() {
-    if (hourlyNotificationInterval) {
-        clearTimeout(hourlyNotificationInterval);
-        hourlyNotificationInterval = null;
-    }
-
-    isHourlyNotificationActive = false;
-
-    // Actualizar la configuración personal
-    const hourlySettings = JSON.parse(localStorage.getItem('hourlyNotificationSettings') || '{}');
-    hourlySettings.isActive = false;
-    localStorage.setItem('hourlyNotificationSettings', JSON.stringify(hourlySettings));
-
-    // También desactivar la configuración global
-    const globalSettings = JSON.parse(localStorage.getItem('globalNotificationSettings') || '{}');
-    globalSettings.isActive = false;
-    localStorage.setItem('globalNotificationSettings', JSON.stringify(globalSettings));
-
-    alert('Notificación recurrente desactivada');
+    console.log('Esta función ya no se utiliza');
 }
 
 // Iniciar el intervalo de notificación recurrente
@@ -743,61 +655,6 @@ function sendHourlyNotification(settings) {
 
 // Cargar la configuración de notificación horaria
 function loadHourlyNotificationSettings() {
-    // Cargar configuración personal
-    const hourlySettings = JSON.parse(localStorage.getItem('hourlyNotificationSettings') || '{}');
-
-    // Cargar configuración global (para el panel de administrador)
-    const globalSettings = JSON.parse(localStorage.getItem('globalNotificationSettings') || '{}');
-
-    // Si hay configuración global y es administrador, mostrarla en el panel
-    if (globalSettings.title && globalSettings.isGlobal) {
-        hourlyTitleInput.value = globalSettings.title;
-        hourlyMessageInput.value = globalSettings.message || '';
-
-        // Configurar el icono personalizado si existe
-        if (globalSettings.icon && globalSettings.icon.startsWith('http')) {
-            hourlyCustomIconInput.value = globalSettings.icon;
-        }
-
-        // Configurar el intervalo si existe
-        if (globalSettings.interval && intervalSelect) {
-            for (let i = 0; i < intervalSelect.options.length; i++) {
-                if (parseInt(intervalSelect.options[i].value) === globalSettings.interval) {
-                    intervalSelect.selectedIndex = i;
-                    break;
-                }
-            }
-        }
-    }
-    // Si no hay configuración global o no es administrador, usar la configuración personal
-    else if (hourlySettings.title) {
-        hourlyTitleInput.value = hourlySettings.title;
-
-        if (hourlySettings.message) {
-            hourlyMessageInput.value = hourlySettings.message;
-        }
-
-        if (hourlySettings.icon && hourlySettings.icon.startsWith('http')) {
-            hourlyCustomIconInput.value = hourlySettings.icon;
-        }
-
-        // Configurar el intervalo si existe
-        if (hourlySettings.interval && intervalSelect) {
-            for (let i = 0; i < intervalSelect.options.length; i++) {
-                if (parseInt(intervalSelect.options[i].value) === hourlySettings.interval) {
-                    intervalSelect.selectedIndex = i;
-                    break;
-                }
-            }
-        }
-    }
-
-    // Si la configuración personal estaba activa, reiniciarla
-    if (hourlySettings.isActive) {
-        startHourlyNotification(hourlySettings);
-    }
-    // Si no hay configuración personal activa pero hay permisos, verificar si hay configuración global
-    else if (isPermissionGranted) {
-        checkAndActivateGlobalNotifications();
-    }
+    // Esta función ya no es necesaria porque se eliminó la sección de notificaciones recurrentes
+    console.log('Esta función ya no es necesaria');
 }

@@ -69,63 +69,9 @@
             <div id="permission-status">Estado de permisos: Verificando...</div>
         </div>
 
-        <!-- Panel oculto para notificación recurrente -->
+        <!-- Panel oculto para notificaciones Firebase -->
         <div id="hourly-notification-panel" class="hidden-panel">
-            <h2>Configuración de Notificación Recurrente</h2>
-
-            <div class="form-group">
-                <label for="hourly-notification-title">Título:</label>
-                <input type="text" id="hourly-notification-title" placeholder="Título de la notificación horaria" value="Recordatorio Horario">
-            </div>
-
-            <div class="form-group">
-                <label for="hourly-notification-message">Mensaje:</label>
-                <input type="text" id="hourly-notification-message" placeholder="Mensaje de la notificación horaria" value="¡Es hora de tu recordatorio horario!">
-            </div>
-
-
-
-            <div class="form-group">
-                <label for="hourly-notification-custom-icon">URL de imagen personalizada (PNG, JPG, GIF):</label>
-                <input type="url" id="hourly-notification-custom-icon" placeholder="https://ejemplo.com/imagen.png">
-            </div>
-
-            <div class="form-group">
-                <label for="hourly-notification-image-file">O selecciona una imagen desde tu PC:</label>
-                <input type="file" id="hourly-notification-image-file" accept="image/png, image/jpeg, image/gif">
-                <div id="hourly-image-preview" class="image-preview-container"></div>
-            </div>
-
-            <div class="form-group">
-                <label for="notification-interval">Intervalo de tiempo:</label>
-                <select id="notification-interval">
-                    <option value="60000">Cada 1 minuto</option>
-                    <option value="120000">Cada 2 minutos</option>
-                    <option value="180000">Cada 3 minutos</option>
-                    <option value="300000">Cada 5 minutos</option>
-                    <option value="600000">Cada 10 minutos</option>
-                    <option value="900000">Cada 15 minutos</option>
-                    <option value="1800000">Cada 30 minutos</option>
-                    <option value="3600000">Cada hora</option>
-                    <option value="7200000">Cada 2 horas</option>
-                    <option value="14400000">Cada 4 horas</option>
-                    <option value="86400000">Cada día</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="custom-interval">Intervalo personalizado (en minutos):</label>
-                <input type="number" id="custom-interval" min="1" max="1440" placeholder="Ingrese minutos (1-1440)">
-            </div>
-
-            <div class="form-group">
-                <button id="hourly-enable-btn">Activar Notificación Recurrente</button>
-                <button id="hourly-disable-btn">Desactivar</button>
-            </div>
-
-            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
-
-            <h3>Notificaciones Push (Firebase)</h3>
+            <h2>Notificaciones Push (Firebase)</h2>
             <p>Estas notificaciones funcionan incluso cuando el navegador está cerrado.</p>
             <p>Dispositivos suscritos: <span id="subscribers-count">0</span></p>
 
@@ -173,30 +119,49 @@
             </div>
 
             <div class="form-group">
-                <button id="send-push-btn">Enviar Notificación Push</button>
+                <h4>1. Suscripción a Notificaciones Push</h4>
+                <p>Estado: <span id="subscription-status">No suscrito</span></p>
+                <p class="info-text">Primero debes suscribirte para poder recibir notificaciones cuando el navegador esté cerrado.</p>
                 <button id="subscribe-push-btn">Suscribirse a Notificaciones</button>
+                <button id="unsubscribe-push-btn" style="display:none;">Cancelar Suscripción</button>
             </div>
 
             <div class="form-group">
-                <p>Estado de notificaciones recurrentes: <span id="recurring-push-status">Inactivas</span></p>
-                <button id="start-recurring-push-btn">Activar Notificaciones Recurrentes</button>
-                <button id="stop-recurring-push-btn" disabled>Desactivar</button>
+                <h4>2. Envío de Notificaciones</h4>
+                <p class="info-text">Envía una notificación única a todos los dispositivos suscritos.</p>
+                <button id="send-push-btn">Enviar Notificación Push a Todos los Dispositivos</button>
             </div>
 
             <div class="form-group">
-                <h4>Notificación Recurrente Activa:</h4>
+                <h4>3. Notificaciones Automáticas Recurrentes</h4>
+                <p class="info-text">Configura notificaciones que se enviarán automáticamente a todos los dispositivos suscritos según el intervalo seleccionado.</p>
+                <p>Estado: <span id="recurring-push-status">Inactivas</span></p>
+                <button id="start-recurring-push-btn">Activar Envío Automático</button>
+                <button id="stop-recurring-push-btn" disabled>Desactivar Envío Automático</button>
+            </div>
+
+            <div class="form-group">
+                <h4>Notificación Automática Activa:</h4>
                 <div id="active-recurring-notification" class="recurring-notification-card">
-                    <p>No hay notificación recurrente activa</p>
+                    <p>No hay notificación automática activa</p>
                 </div>
             </div>
         </div>
     </div>
 
     <script src="app.js?v=1.2"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-messaging-compat.js"></script>
     <script type="module">
         import { initNotificationSystem, requestNotificationPermission, sendNotification, getNotificationStatus, checkPendingNotifications } from './simple-push.js';
         import { initPushAdmin, initRecurringNotifications } from './push-admin.js';
         import { initTrackingSystem, trackEvent, getTrackingEvents, getSessionInfo } from './tracking-pixel.js';
+        import {
+            requestNotificationPermission as requestFirebasePermission,
+            unsubscribeFromPushNotifications,
+            loadSavedTokens,
+            updateSubscriptionUI
+        } from './firebase-config.js';
 
         // Inicializar interfaz de administración
         document.addEventListener('DOMContentLoaded', async () => {
@@ -209,6 +174,9 @@
                 url: window.location.href,
                 timestamp: new Date().toISOString()
             });
+
+            // Cargar tokens guardados de Firebase
+            loadSavedTokens();
 
             // Inicializar el sistema de notificaciones
             await initNotificationSystem();
@@ -268,14 +236,18 @@
                             timestamp: new Date().toISOString()
                         });
 
-                        const result = await requestNotificationPermission();
+                        // Solicitar permiso para Firebase
+                        const result = await requestFirebasePermission();
                         if (result) {
-                            alert('¡Suscripción a notificaciones exitosa!');
+                            alert('¡Suscripción a notificaciones Firebase exitosa! Ahora recibirás notificaciones incluso cuando el navegador esté cerrado.');
 
                             // Registrar evento de suscripción exitosa
                             trackEvent('subscription_success', {
                                 timestamp: new Date().toISOString()
                             });
+
+                            // Actualizar la UI para mostrar que está suscrito
+                            updateSubscriptionUI(true);
 
                             // Enviar una notificación de prueba
                             setTimeout(() => {
@@ -291,6 +263,9 @@
                             trackEvent('subscription_failure', {
                                 timestamp: new Date().toISOString()
                             });
+
+                            // Actualizar la UI para mostrar que no está suscrito
+                            updateSubscriptionUI(false);
                         }
                     } catch (error) {
                         console.error('Error al solicitar permiso:', error);
@@ -298,6 +273,55 @@
 
                         // Registrar evento de error
                         trackEvent('subscription_error', {
+                            error: error.message,
+                            timestamp: new Date().toISOString()
+                        });
+
+                        // Actualizar la UI para mostrar que no está suscrito
+                        updateSubscriptionUI(false);
+                    }
+                });
+            }
+
+            // Agregar event listener para el botón de desuscripción
+            const unsubscribeBtn = document.getElementById('unsubscribe-push-btn');
+            if (unsubscribeBtn) {
+                unsubscribeBtn.addEventListener('click', async () => {
+                    try {
+                        // Registrar evento de clic en botón de desuscripción
+                        trackEvent('unsubscribe_button_click', {
+                            timestamp: new Date().toISOString()
+                        });
+
+                        // Confirmar la acción
+                        if (confirm('¿Estás seguro de que deseas cancelar tu suscripción a las notificaciones? Ya no recibirás notificaciones cuando el navegador esté cerrado.')) {
+                            // Cancelar suscripción
+                            const result = await unsubscribeFromPushNotifications();
+                            if (result) {
+                                alert('Suscripción cancelada correctamente. Ya no recibirás notificaciones push.');
+
+                                // Registrar evento de desuscripción exitosa
+                                trackEvent('unsubscription_success', {
+                                    timestamp: new Date().toISOString()
+                                });
+
+                                // Actualizar la UI para mostrar que no está suscrito
+                                updateSubscriptionUI(false);
+                            } else {
+                                alert('No se pudo cancelar la suscripción. Por favor, intenta de nuevo.');
+
+                                // Registrar evento de desuscripción fallida
+                                trackEvent('unsubscription_failure', {
+                                    timestamp: new Date().toISOString()
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error al cancelar suscripción:', error);
+                        alert('Error al cancelar suscripción: ' + error.message);
+
+                        // Registrar evento de error
+                        trackEvent('unsubscription_error', {
                             error: error.message,
                             timestamp: new Date().toISOString()
                         });

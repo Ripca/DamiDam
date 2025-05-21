@@ -241,15 +241,35 @@ input[type="file"] {
     margin-bottom: 10px;
 }
 
-.status-granted, .status-active {
+.status-granted, .status-active, .status-subscribed {
     background-color: #d5f5e3;
     color: #27ae60;
     font-weight: bold;
 }
 
-.status-denied, .status-inactive {
+.status-denied, .status-inactive, .status-unsubscribed {
     background-color: #fadbd8;
     color: #e74c3c;
+}
+
+.info-text {
+    font-size: 0.9em;
+    color: #666;
+    margin-bottom: 10px;
+}
+
+#subscription-status {
+    font-weight: bold;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+#unsubscribe-push-btn {
+    background-color: #e74c3c;
+}
+
+#unsubscribe-push-btn:hover {
+    background-color: #c0392b;
 }
 
 .status-default {
