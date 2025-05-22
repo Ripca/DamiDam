@@ -235,10 +235,34 @@ input[type="file"] {
     background-color: #f9f9f9;
 }
 
-#permission-status, #service-worker-status {
+.subscription-panel {
+    margin-top: 15px;
+    padding: 15px;
+    background-color: #e8f4fd;
+    border-radius: 4px;
+    border-left: 4px solid #3498db;
+}
+
+#permission-status, #service-worker-status, #subscription-status-public {
     padding: 10px;
     border-radius: 4px;
     margin-bottom: 10px;
+}
+
+#unsubscribe-btn-public {
+    background-color: #e74c3c;
+}
+
+#unsubscribe-btn-public:hover {
+    background-color: #c0392b;
+}
+
+#subscribe-btn-public {
+    background-color: #2ecc71;
+}
+
+#subscribe-btn-public:hover {
+    background-color: #27ae60;
 }
 
 .status-granted, .status-active, .status-subscribed {
@@ -258,7 +282,7 @@ input[type="file"] {
     margin-bottom: 10px;
 }
 
-#subscription-status {
+#subscription-status, #subscription-status-public {
     font-weight: bold;
     padding: 3px 8px;
     border-radius: 4px;

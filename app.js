@@ -4,7 +4,7 @@ let isPermissionGranted = false;
 const scheduledNotifications = [];
 let hourlyNotificationInterval = null;
 let isHourlyNotificationActive = false;
-const CORRECT_PASSWORD = '123';
+const CORRECT_PASSWORD = 'PastelitoCoronado123';
 
 // Elementos del DOM
 const titleInput = document.getElementById('notification-title');

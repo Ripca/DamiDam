@@ -1,8 +1,8 @@
 // Firebase Cloud Messaging Service Worker
 
 // Importar las bibliotecas de Firebase necesarias
-importScripts('https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/9.6.10/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
 console.log('[firebase-messaging-sw.js] Firebase scripts importados correctamente');
 
@@ -22,22 +22,44 @@ console.log('[firebase-messaging-sw.js] Firebase inicializado correctamente');
 const messaging = firebase.messaging();
 console.log('[firebase-messaging-sw.js] Firebase Messaging inicializado correctamente');
 
+// Configurar el service worker para recibir notificaciones push
+// La configuración principal está más abajo
+
 // Variables para notificaciones programadas
 let scheduledNotifications = [];
 let notificationTimers = {};
 
 // Asegurarse de que el service worker esté activo
-self.addEventListener('install', (event) => {
+self.addEventListener('install', function(event) {
   console.log('[firebase-messaging-sw.js] Service Worker instalado');
-  self.skipWaiting(); // Activar inmediatamente
+
+  // Activar inmediatamente sin esperar a que se cierre la página
+  event.waitUntil(self.skipWaiting());
+  console.log('[firebase-messaging-sw.js] skipWaiting llamado');
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', function(event) {
   console.log('[firebase-messaging-sw.js] Service Worker activado');
-  event.waitUntil(self.clients.claim()); // Tomar control inmediatamente
 
-  // Restaurar notificaciones programadas
-  restoreScheduledNotifications();
+  // Tomar control de todas las páginas inmediatamente y notificar
+  event.waitUntil(
+    self.clients.claim().then(() => {
+      console.log('[firebase-messaging-sw.js] Clients claimed');
+
+      // Notificar a todas las ventanas que el service worker está activo
+      return self.clients.matchAll().then(clients => {
+        clients.forEach(client => {
+          client.postMessage({
+            type: 'SW_ACTIVATED',
+            message: 'Service Worker está activo'
+          });
+        });
+
+        // Restaurar notificaciones programadas
+        return restoreScheduledNotifications();
+      });
+    })
+  );
 });
 
 // Manejar mensajes en segundo plano
@@ -51,11 +73,44 @@ messaging.onBackgroundMessage((payload) => {
     icon: payload.notification?.icon || '/images/perrito.png',
     badge: '/images/badge-icon.png',
     vibrate: [200, 100, 200],
-    requireInteraction: true
+    requireInteraction: true,
+    tag: 'push-notification-' + Date.now(), // Usar tag único para evitar reemplazar notificaciones
+    renotify: true, // Notificar incluso si hay una notificación con la misma etiqueta
+    data: {
+      url: payload.data?.url || '/',
+      timestamp: payload.data?.timestamp || Date.now(),
+      id: 'fcm-' + Date.now()
+    }
   };
 
+  // Notificar a todas las ventanas que se recibió una notificación
+  self.clients.matchAll({ type: 'window' }).then(clients => {
+    if (clients.length > 0) {
+      console.log('[firebase-messaging-sw.js] Notificando a', clients.length, 'ventanas abiertas');
+      clients.forEach(client => {
+        client.postMessage({
+          action: 'notificationReceived',
+          notification: {
+            title: notificationTitle,
+            body: notificationOptions.body,
+            timestamp: Date.now(),
+            id: notificationOptions.data.id
+          }
+        });
+      });
+    } else {
+      console.log('[firebase-messaging-sw.js] No hay ventanas abiertas para notificar');
+    }
+  });
+
   // Mostrar la notificación
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+  return self.registration.showNotification(notificationTitle, notificationOptions)
+    .then(() => {
+      console.log('[firebase-messaging-sw.js] Notificación mostrada correctamente');
+    })
+    .catch(error => {
+      console.error('[firebase-messaging-sw.js] Error al mostrar notificación:', error);
+    });
 });
 console.log('[firebase-messaging-sw.js] Handler de mensajes en segundo plano registrado');
 
@@ -75,10 +130,42 @@ self.addEventListener('push', function(event) {
         body: data.notification?.body || 'Tienes una nueva notificación',
         icon: data.notification?.icon || '/images/perrito.png',
         badge: '/images/badge-icon.png',
-        requireInteraction: true
+        vibrate: [200, 100, 200],
+        requireInteraction: true,
+        tag: 'push-notification-' + Date.now(),
+        renotify: true,
+        data: {
+          url: data.data?.url || '/',
+          timestamp: Date.now(),
+          id: 'push-' + Date.now()
+        }
       };
 
-      event.waitUntil(self.registration.showNotification(title, options));
+      // Notificar a todas las ventanas que se recibió una notificación
+      const notifyClients = self.clients.matchAll({ type: 'window' }).then(clients => {
+        if (clients.length > 0) {
+          console.log('[firebase-messaging-sw.js] Notificando a', clients.length, 'ventanas abiertas sobre push');
+          clients.forEach(client => {
+            client.postMessage({
+              action: 'notificationReceived',
+              notification: {
+                title: title,
+                body: options.body,
+                timestamp: Date.now(),
+                id: options.data.id
+              }
+            });
+          });
+        }
+      });
+
+      // Mostrar la notificación y notificar a los clientes
+      event.waitUntil(
+        Promise.all([
+          self.registration.showNotification(title, options),
+          notifyClients
+        ])
+      );
     } catch (error) {
       console.error('[firebase-messaging-sw.js] Error al procesar push:', error);
 
@@ -86,7 +173,15 @@ self.addEventListener('push', function(event) {
       event.waitUntil(
         self.registration.showNotification('Nueva notificación', {
           body: 'Tienes una nueva notificación',
-          icon: '/images/perrito.png'
+          icon: '/images/perrito.png',
+          badge: '/images/badge-icon.png',
+          vibrate: [200, 100, 200],
+          requireInteraction: true,
+          tag: 'push-notification-fallback',
+          data: {
+            timestamp: Date.now(),
+            id: 'push-fallback-' + Date.now()
+          }
         })
       );
     }
@@ -95,25 +190,51 @@ self.addEventListener('push', function(event) {
 
 // Manejar clics en notificaciones
 self.addEventListener('notificationclick', (event) => {
-  console.log('Notificación clickeada:', event.notification);
+  console.log('[firebase-messaging-sw.js] Notificación clickeada:', event.notification);
 
+  // Cerrar la notificación
   event.notification.close();
 
+  // Obtener datos de la notificación
+  const notificationData = event.notification.data || {};
+  const url = notificationData.url || '/';
+  const notificationId = notificationData.id || 'unknown';
+
+  console.log('[firebase-messaging-sw.js] Datos de notificación:', notificationData);
+  console.log('[firebase-messaging-sw.js] URL a abrir:', url);
+
+  // Notificar a todas las ventanas que se hizo clic en la notificación
+  const notifyClients = self.clients.matchAll({ type: 'window' }).then(clients => {
+    if (clients.length > 0) {
+      console.log('[firebase-messaging-sw.js] Notificando a', clients.length, 'ventanas abiertas sobre clic en notificación');
+      clients.forEach(client => {
+        client.postMessage({
+          action: 'notificationClicked',
+          notification: {
+            id: notificationId,
+            timestamp: Date.now()
+          }
+        });
+      });
+    }
+  });
+
   // Abrir o enfocar la ventana principal
-  event.waitUntil(
-    clients.matchAll({type: 'window'}).then((windowClients) => {
-      // Verificar si ya hay una ventana abierta y enfocarla
-      for (const client of windowClients) {
-        if ('focus' in client) {
-          return client.focus();
-        }
+  const focusOrOpenWindow = clients.matchAll({type: 'window'}).then((windowClients) => {
+    // Verificar si ya hay una ventana abierta y enfocarla
+    for (const client of windowClients) {
+      if ('focus' in client) {
+        return client.focus();
       }
-      // Si no hay ventana abierta, abrir una nueva
-      if (clients.openWindow) {
-        return clients.openWindow('/');
-      }
-    })
-  );
+    }
+    // Si no hay ventana abierta, abrir una nueva
+    if (clients.openWindow) {
+      return clients.openWindow(url);
+    }
+  });
+
+  // Esperar a que ambas promesas se completen
+  event.waitUntil(Promise.all([notifyClients, focusOrOpenWindow]));
 });
 
 // Manejar mensajes desde la página
@@ -130,6 +251,17 @@ self.addEventListener('message', (event) => {
         break;
       case 'getScheduledNotifications':
         sendScheduledNotificationsToClient(event.source);
+        break;
+      case 'ping':
+        console.log('[firebase-messaging-sw.js] Ping recibido:', event.data.message);
+        // Responder al ping
+        if (event.source) {
+          event.source.postMessage({
+            type: 'PING_RESPONSE',
+            message: 'Pong desde el Service Worker',
+            timestamp: Date.now()
+          });
+        }
         break;
     }
   }

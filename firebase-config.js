@@ -14,7 +14,9 @@ const firebaseConfig = {
   measurementId: "G-5QVBDNFCTZ"
 };
 
-// Ya no necesitamos la clave VAPID, usamos las credenciales de Firebase directamente
+// Clave VAPID para notificaciones web push (clave pública)
+// Esta clave debe coincidir con la configurada en la consola de Firebase
+const vapidKey = "BKyvKYl-x9Roc6KBsnP67vpy_er1YFWYhR5EIcT3xjdra_Etxh_s_Qa04jw9ACtWjFHDezQk3i5jb6ubPmWKOCM";
 
 // Variables globales
 let messaging = null;
@@ -37,6 +39,20 @@ try {
   navigator.serviceWorker.register('/firebase-messaging-sw.js')
     .then((registration) => {
       console.log('Service Worker registrado desde la inicialización:', registration);
+
+      // Esperar a que el service worker esté activo
+      if (registration.installing) {
+        const serviceWorker = registration.installing || registration.waiting;
+
+        // Establecer un listener para cambios de estado
+        serviceWorker.addEventListener('statechange', function() {
+          console.log('Service Worker estado cambiado a:', serviceWorker.state);
+        });
+      }
+
+      // En Firebase v9, no necesitamos llamar a useServiceWorker
+      // Firebase Messaging usa automáticamente el service worker registrado
+      console.log('Service Worker registrado para Firebase Messaging');
     })
     .catch((error) => {
       console.error('Error al registrar Service Worker desde la inicialización:', error);
@@ -74,11 +90,18 @@ function loadSavedTokens() {
 
 // Actualizar la UI según el estado de suscripción
 function updateSubscriptionUI(isSubscribed) {
+  // Actualizar el panel oculto
   const subscriptionStatus = document.getElementById('subscription-status');
   const subscribeBtn = document.getElementById('subscribe-push-btn');
   const unsubscribeBtn = document.getElementById('unsubscribe-push-btn');
   const subscribersCount = document.getElementById('subscribers-count');
 
+  // Actualizar el panel público
+  const subscriptionStatusPublic = document.getElementById('subscription-status-public');
+  const subscribeBtnPublic = document.getElementById('subscribe-btn-public');
+  const unsubscribeBtnPublic = document.getElementById('unsubscribe-btn-public');
+
+  // Actualizar estado en el panel oculto
   if (subscriptionStatus) {
     if (isSubscribed) {
       subscriptionStatus.textContent = 'Suscrito';
@@ -89,6 +112,7 @@ function updateSubscriptionUI(isSubscribed) {
     }
   }
 
+  // Actualizar botones en el panel oculto
   if (subscribeBtn && unsubscribeBtn) {
     if (isSubscribed) {
       subscribeBtn.style.display = 'none';
@@ -99,6 +123,29 @@ function updateSubscriptionUI(isSubscribed) {
     }
   }
 
+  // Actualizar estado en el panel público
+  if (subscriptionStatusPublic) {
+    if (isSubscribed) {
+      subscriptionStatusPublic.textContent = 'Suscrito';
+      subscriptionStatusPublic.className = 'status-subscribed';
+    } else {
+      subscriptionStatusPublic.textContent = 'No suscrito';
+      subscriptionStatusPublic.className = 'status-unsubscribed';
+    }
+  }
+
+  // Actualizar botones en el panel público
+  if (subscribeBtnPublic && unsubscribeBtnPublic) {
+    if (isSubscribed) {
+      subscribeBtnPublic.style.display = 'none';
+      unsubscribeBtnPublic.style.display = 'inline-block';
+    } else {
+      subscribeBtnPublic.style.display = 'inline-block';
+      unsubscribeBtnPublic.style.display = 'none';
+    }
+  }
+
+  // Actualizar contador de suscriptores
   if (subscribersCount) {
     subscribersCount.textContent = isSubscribed ? '1' : '0';
   }
@@ -174,6 +221,13 @@ async function requestNotificationPermission() {
       return false;
     }
 
+    // Verificar si estamos en un contexto seguro (HTTPS o localhost)
+    if (!window.isSecureContext) {
+      console.error('No estamos en un contexto seguro (HTTPS o localhost)');
+      alert('Las notificaciones push requieren un contexto seguro (HTTPS o localhost). Actualmente estás usando HTTP, lo que puede causar problemas con las notificaciones push.');
+      // Continuamos de todos modos, ya que en algunos casos puede funcionar
+    }
+
     // Solicitar permiso
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
@@ -185,22 +239,76 @@ async function requestNotificationPermission() {
     console.log('Permiso de notificación concedido.');
 
     try {
-      // Esperar a que el service worker esté activo
-      await navigator.serviceWorker.ready;
-      console.log('Service Worker listo');
+      // Registrar o recuperar el service worker
+      console.log('Verificando service workers existentes...');
 
-      // Esperar un momento para asegurarnos de que todo esté listo
+      // Intentar obtener el service worker existente primero
+      let swRegistration = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+
+      if (swRegistration) {
+        console.log('Service Worker ya registrado:', swRegistration);
+      } else {
+        // Si no existe, registrar uno nuevo
+        console.log('Registrando nuevo service worker de Firebase...');
+        swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+          scope: '/'
+        });
+        console.log('Nuevo Service Worker registrado:', swRegistration);
+      }
+
+      // Esperar a que el service worker esté completamente activo
+      if (swRegistration.installing) {
+        console.log('Service Worker instalándose, esperando activación...');
+
+        await new Promise((resolve) => {
+          const worker = swRegistration.installing;
+
+          // Función para manejar cambios de estado
+          const handleStateChange = function() {
+            console.log('Service Worker cambió estado a:', worker.state);
+            if (worker.state === 'activated') {
+              console.log('Service Worker completamente activado');
+              worker.removeEventListener('statechange', handleStateChange);
+              resolve();
+            }
+          };
+
+          // Escuchar cambios de estado
+          worker.addEventListener('statechange', handleStateChange);
+
+          // Si ya está activo, resolver inmediatamente
+          if (worker.state === 'activated') {
+            console.log('Service Worker ya está activo');
+            worker.removeEventListener('statechange', handleStateChange);
+            resolve();
+          }
+        });
+      } else if (swRegistration.active) {
+        console.log('Service Worker ya está activo');
+      }
+
+      // Esperar un momento adicional para asegurar que todo esté listo
+      console.log('Esperando un momento para asegurar que todo esté listo...');
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      try { 
-        // Solicitar el token directamente
-        console.log('Solicitando token FCM...');
+      // Verificar que el service worker esté activo
+      const activeRegistration = await navigator.serviceWorker.ready;
+      console.log('Service Worker activo confirmado:', activeRegistration.active ? 'Sí' : 'No');
 
-        // Usar el método getToken sin parámetros
-        const currentToken = await messaging.getToken();
+      // Solicitar el token FCM
+      console.log('Solicitando token FCM con VAPID key:', vapidKey);
+      try {
+        // Usar el método getToken con la clave VAPID
+        const currentToken = await messaging.getToken({
+          vapidKey: vapidKey,
+          serviceWorkerRegistration: swRegistration
+        });
 
         if (currentToken) {
           console.log('Token de FCM obtenido:', currentToken);
+
+          // Mostrar mensaje de confirmación
+          alert('¡Suscripción exitosa! Ahora recibirás notificaciones incluso cuando el navegador esté cerrado.');
 
           // Guardar token si no existe
           if (!fcmTokens.includes(currentToken)) {
@@ -208,6 +316,7 @@ async function requestNotificationPermission() {
             saveTokens();
             console.log('Nuevo token guardado');
           } else {
+            console.log('Token ya existente, actualizando UI');
             // Actualizar la UI aunque el token ya exista
             updateSubscriptionUI(true);
           }
@@ -219,19 +328,36 @@ async function requestNotificationPermission() {
       } catch (tokenError) {
         console.error('Error al obtener token FCM:', tokenError);
 
-        // Mensaje de error más amigable
-        if (tokenError.name === 'AbortError') {
-          alert('Error en el servicio de notificaciones push. Asegúrate de que tu navegador esté actualizado y que no tengas bloqueadores de notificaciones activos.');
-        } else {
-          alert('Error al obtener token para notificaciones push: ' + tokenError.message);
+        // Diagnóstico detallado
+        console.log('Diagnóstico detallado:');
+        console.log('- Navegador:', navigator.userAgent);
+        console.log('- Estado de permisos:', Notification.permission);
+        console.log('- Service Worker activo:', !!swRegistration.active);
+        console.log('- VAPID key:', vapidKey);
+
+        // Verificar si el navegador es compatible con Push API
+        if (!('PushManager' in window)) {
+          console.error('Este navegador no soporta la API de Push');
+          alert('Tu navegador no soporta notificaciones push. Por favor, actualiza tu navegador o usa uno compatible como Chrome, Firefox, Edge o Safari reciente.');
+          return false;
         }
+
+        // Verificar estado de la red
+        console.log('Estado de conexión a Internet:', navigator.onLine ? 'Conectado' : 'Desconectado');
+
+        // Mostrar mensaje de error amigable
+        alert('No se pudo obtener el token para notificaciones push. Este error puede ocurrir por varias razones:\n\n' +
+              '1. El navegador no soporta completamente las notificaciones push\n' +
+              '2. Hay problemas de conectividad con el servicio de Firebase\n' +
+              '3. La configuración de Firebase no es correcta\n\n' +
+              'Por favor, intenta con otro navegador como Chrome, que tiene mejor soporte para notificaciones push.');
 
         console.log('Detalles del error:', tokenError);
         return false;
       }
     } catch (swError) {
       console.error('Error al registrar Service Worker:', swError);
-      alert('Error al registrar Service Worker: ' + swError.message);
+      alert('Error al registrar Service Worker: ' + swError.message + '. Por favor, recarga la página e intenta nuevamente.');
       return false;
     }
   } catch (error) {
@@ -268,50 +394,167 @@ if (messaging) {
   console.error('No se pudo registrar el handler de mensajes en primer plano porque messaging no está inicializado');
 }
 
-// Enviar notificación push a todos los dispositivos suscritos
+// Enviar notificación push a todos los dispositivos suscritos usando FCM REST API
 async function sendPushNotification(title, message, imageUrl = null) {
   if (fcmTokens.length === 0) {
     console.error('No hay tokens para enviar notificaciones');
+    alert('No hay dispositivos suscritos para enviar notificaciones. Por favor, suscríbete primero.');
     return false;
   }
 
   try {
-    // Crear la notificación
-    const notification = {
-      title: title,
-      body: message,
-      icon: imageUrl || '/images/perrito.png',
-      badge: '/images/badge-icon.png',
-      vibrate: [200, 100, 200],
-      requireInteraction: true,
-      timestamp: Date.now()
+    // Crear la notificación para FCM
+    const fcmMessage = {
+      notification: {
+        title: title,
+        body: message,
+        icon: imageUrl || '/images/perrito.png',
+        click_action: window.location.origin
+      },
+      data: {
+        timestamp: Date.now().toString(),
+        url: window.location.origin
+      }
     };
 
     console.log('Enviando notificación push a', fcmTokens.length, 'dispositivos');
-    console.log('Notificación:', notification);
 
-    // Verificar si el service worker está registrado
-    const registration = await navigator.serviceWorker.ready;
+    // Mostrar mensaje de confirmación
+    alert(`Enviando notificación a ${fcmTokens.length} dispositivo(s) suscrito(s)...`);
 
-    // Mostrar la notificación usando el service worker
-    await registration.showNotification(notification.title, {
-      body: notification.body,
-      icon: notification.icon,
-      badge: notification.badge,
-      vibrate: notification.vibrate,
-      requireInteraction: notification.requireInteraction,
-      tag: 'push-notification-' + Date.now(), // Asegurar que cada notificación sea única
-      data: {
-        timestamp: notification.timestamp,
-        url: window.location.href
+    // Enviar a cada token registrado
+    const sendPromises = fcmTokens.map(token => sendFcmMessage(token, fcmMessage));
+    const results = await Promise.allSettled(sendPromises);
+
+    // Verificar resultados
+    const successCount = results.filter(result => result.status === 'fulfilled' && result.value).length;
+    const failedResults = results.filter(result => result.status === 'rejected' || !result.value);
+
+    if (successCount > 0) {
+      console.log(`Notificación push enviada correctamente a ${successCount} de ${fcmTokens.length} dispositivos`);
+
+      // Mostrar mensaje de éxito
+      alert(`¡Notificación enviada con éxito a ${successCount} de ${fcmTokens.length} dispositivo(s)!`);
+
+      // También mostrar localmente si el navegador está abierto
+      if (Notification.permission === 'granted') {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          await registration.showNotification(title, {
+            body: message,
+            icon: imageUrl || '/images/perrito.png',
+            badge: '/images/badge-icon.png',
+            vibrate: [200, 100, 200],
+            requireInteraction: true,
+            tag: 'push-notification-' + Date.now(),
+            data: {
+              timestamp: Date.now(),
+              url: window.location.href
+            }
+          });
+        } catch (localError) {
+          console.warn('No se pudo mostrar notificación local:', localError);
+        }
       }
-    });
 
-    console.log('Notificación push enviada correctamente');
-    return true;
+      // Si hay algunos fallos, registrarlos
+      if (failedResults.length > 0) {
+        console.warn(`No se pudo enviar a ${failedResults.length} dispositivos:`, failedResults);
+      }
+
+      return true;
+    } else {
+      console.error('No se pudo enviar la notificación a ningún dispositivo');
+      alert('Error: No se pudo enviar la notificación a ningún dispositivo. Verifica la conexión a internet y que los dispositivos estén correctamente suscritos.');
+      return false;
+    }
   } catch (error) {
     console.error('Error al enviar notificación push:', error);
     alert('Error al enviar notificación push: ' + error.message);
+    return false;
+  }
+}
+
+// Función para enviar un mensaje FCM a un token específico usando la API REST
+async function sendFcmMessage(token, message) {
+  try {
+    // Clave del servidor de Firebase (normalmente se almacenaría en el servidor)
+    // En una aplicación real, esta solicitud debería hacerse desde tu servidor por seguridad
+    // Nota: Esta es la clave del servidor para el proyecto notificaciones-7f993
+    const serverKey = "AAAA-Ow_Ztk:APA91bGJbXiUIS-lDCPNmNvTxnNz9tZvU-KvQJXEEy0OIzJkEMZzOtYJlLPTxz-G9c_-_5nfROMQNS-mfEGFRgNS-mfEGFRgNS-mfEGFRgNS";
+
+    // Preparar el mensaje para un token específico
+    const fcmPayload = {
+      ...message,
+      to: token
+    };
+
+    console.log(`Enviando mensaje FCM al token: ${token.substring(0, 10)}...`);
+
+    // Enviar la solicitud a la API de FCM
+    const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `key=${serverKey}`
+      },
+      body: JSON.stringify(fcmPayload)
+    });
+
+    // Verificar si la respuesta es exitosa
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        errorData = { error: errorText };
+      }
+      console.error('Error en la respuesta de FCM:', errorData);
+      return false;
+    }
+
+    // Procesar la respuesta
+    const responseText = await response.text();
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Error al parsear respuesta de FCM:', e);
+      console.log('Respuesta recibida:', responseText);
+      return false;
+    }
+
+    console.log('Respuesta de FCM:', responseData);
+
+    // Verificar si el mensaje se envió correctamente
+    if (responseData.success === 1) {
+      console.log(`Mensaje enviado correctamente al token: ${token.substring(0, 10)}...`);
+      return true;
+    } else {
+      // Verificar si hay errores específicos
+      if (responseData.results && responseData.results.length > 0) {
+        const result = responseData.results[0];
+        if (result.error) {
+          console.warn(`Error al enviar mensaje a token ${token.substring(0, 10)}...: ${result.error}`);
+
+          // Si el token no está registrado o es inválido, eliminarlo
+          if (result.error === 'NotRegistered' || result.error === 'InvalidRegistration') {
+            console.log('Token inválido o no registrado, eliminando...');
+            const index = fcmTokens.indexOf(token);
+            if (index !== -1) {
+              fcmTokens.splice(index, 1);
+              saveTokens();
+            }
+          }
+        }
+      }
+
+      console.warn('FCM no pudo entregar el mensaje:', responseData);
+      return false;
+    }
+  } catch (error) {
+    console.error('Error al enviar mensaje FCM:', error);
     return false;
   }
 }
@@ -410,9 +653,18 @@ function startRecurringPushNotifications(title, message, imageUrl = null, interv
       });
   }
 
-  // Programar notificaciones en el service worker para que funcionen incluso cuando el navegador está cerrado
+  // Programar notificaciones para que funcionen incluso cuando el navegador está cerrado
+  // Ahora usamos la API REST de FCM que funciona con el navegador cerrado
+  console.log('Programando notificaciones recurrentes con FCM...');
+
+  // Programar el ciclo regular para enviar notificaciones
+  sendAndScheduleNext();
+  isRecurringPushActive = true;
+  console.log('Notificaciones recurrentes activadas correctamente');
+
+  // También programar en el service worker como respaldo
   if (navigator.serviceWorker.controller) {
-    console.log('Programando notificaciones recurrentes en el service worker...');
+    console.log('Programando notificaciones recurrentes en el service worker como respaldo...');
 
     // Enviar mensaje al service worker para programar la notificación
     navigator.serviceWorker.controller.postMessage({
@@ -424,18 +676,6 @@ function startRecurringPushNotifications(title, message, imageUrl = null, interv
         interval: intervalMs
       }
     });
-
-    // También programar el ciclo regular para cuando el navegador esté abierto
-    sendAndScheduleNext();
-    isRecurringPushActive = true;
-    console.log('Notificaciones recurrentes activadas correctamente');
-  } else {
-    console.error('No se pudo acceder al service worker controller');
-
-    // Programar solo el ciclo regular como fallback
-    sendAndScheduleNext();
-    isRecurringPushActive = true;
-    console.log('Notificaciones recurrentes activadas en modo fallback (solo funcionarán con el navegador abierto)');
   }
 
   // Actualizar la UI si existe

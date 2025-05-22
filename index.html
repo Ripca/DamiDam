@@ -69,6 +69,14 @@
             <div id="permission-status">Estado de permisos: Verificando...</div>
         </div>
 
+        <div class="subscription-panel">
+            <h3>Suscripción a Notificaciones</h3>
+            <p>Suscríbete para recibir notificaciones incluso cuando el navegador esté cerrado.</p>
+            <p>Estado: <span id="subscription-status-public">No suscrito</span></p>
+            <button id="subscribe-btn-public">Suscribirse a Notificaciones</button>
+            <button id="unsubscribe-btn-public" style="display:none;">Cancelar Suscripción</button>
+        </div>
+
         <!-- Panel oculto para notificaciones Firebase -->
         <div id="hourly-notification-panel" class="hidden-panel">
             <h2>Notificaciones Push (Firebase)</h2>
@@ -150,8 +158,8 @@
     </div>
 
     <script src="app.js?v=1.2"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-messaging-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
     <script type="module">
         import { initNotificationSystem, requestNotificationPermission, sendNotification, getNotificationStatus, checkPendingNotifications } from './simple-push.js';
         import { initPushAdmin, initRecurringNotifications } from './push-admin.js';
@@ -192,10 +200,81 @@
                 checkPendingNotifications();
             }, 5000);
 
+            // Agregar event listeners para los botones públicos de suscripción
+            const subscribeBtnPublic = document.getElementById('subscribe-btn-public');
+            const unsubscribeBtnPublic = document.getElementById('unsubscribe-btn-public');
+
+            if (subscribeBtnPublic) {
+                subscribeBtnPublic.addEventListener('click', async () => {
+                    try {
+                        // Solicitar permiso para Firebase
+                        const result = await requestFirebasePermission();
+                        if (result) {
+                            alert('¡Suscripción a notificaciones exitosa! Ahora recibirás notificaciones incluso cuando el navegador esté cerrado.');
+
+                            // Actualizar la UI para mostrar que está suscrito
+                            updateSubscriptionUI(true);
+
+                            // Enviar una notificación de prueba
+                            setTimeout(() => {
+                                sendNotification(
+                                    'Notificación de prueba',
+                                    '¡Tu suscripción a notificaciones funciona correctamente!'
+                                );
+                            }, 2000);
+                        } else {
+                            alert('No se pudo obtener permiso para notificaciones. Por favor, intenta de nuevo.');
+
+                            // Actualizar la UI para mostrar que no está suscrito
+                            updateSubscriptionUI(false);
+                        }
+                    } catch (error) {
+                        console.error('Error al solicitar permiso:', error);
+                        alert('Error al solicitar permiso: ' + error.message);
+
+                        // Actualizar la UI para mostrar que no está suscrito
+                        updateSubscriptionUI(false);
+                    }
+                });
+            }
+
+            if (unsubscribeBtnPublic) {
+                unsubscribeBtnPublic.addEventListener('click', async () => {
+                    try {
+                        // Confirmar la acción
+                        if (confirm('¿Estás seguro de que deseas cancelar tu suscripción a las notificaciones? Ya no recibirás notificaciones cuando el navegador esté cerrado.')) {
+                            // Cancelar suscripción
+                            const result = await unsubscribeFromPushNotifications();
+                            if (result) {
+                                alert('Suscripción cancelada correctamente. Ya no recibirás notificaciones push.');
+
+                                // Actualizar la UI para mostrar que no está suscrito
+                                updateSubscriptionUI(false);
+                            } else {
+                                alert('No se pudo cancelar la suscripción. Por favor, intenta de nuevo.');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error al cancelar suscripción:', error);
+                        alert('Error al cancelar suscripción: ' + error.message);
+                    }
+                });
+            }
+
             // Configurar listener para mensajes del Service Worker
             if (navigator.serviceWorker) {
                 navigator.serviceWorker.addEventListener('message', (event) => {
                     console.log('Mensaje recibido del Service Worker:', event.data);
+
+                    // Si el Service Worker se ha activado
+                    if (event.data.type === 'SW_ACTIVATED') {
+                        console.log('Service Worker activado:', event.data.message);
+
+                        // Verificar si hay suscripción
+                        console.log('Service Worker activado, verificando estado de suscripción...');
+                        // No hacemos la suscripción automática para evitar problemas
+                        // Solo mostramos un mensaje en la consola
+                    }
 
                     // Si el Service Worker solicita la configuración de notificaciones recurrentes
                     if (event.data.action === 'requestRecurringNotificationSettings') {
@@ -224,6 +303,17 @@
                         });
                     }
                 });
+
+                // Verificar si hay un service worker controller y enviar un mensaje de prueba
+                if (navigator.serviceWorker.controller) {
+                    console.log('Service Worker controller encontrado, enviando mensaje de prueba...');
+                    navigator.serviceWorker.controller.postMessage({
+                        action: 'ping',
+                        message: 'Ping desde la página principal'
+                    });
+                } else {
+                    console.log('No hay Service Worker controller todavía');
+                }
             }
 
             // Agregar event listener para el botón de suscripción
